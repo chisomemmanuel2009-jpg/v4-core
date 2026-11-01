@@ -9,7 +9,6 @@ import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
 import {IHooks} from "../src/interfaces/IHooks.sol";
 import {SwapParams} from "../src/types/PoolOperation.sol";
 import {BalanceDelta} from "../src/types/BalanceDelta.sol";
-import {PoolId, PoolIdLibrary} from "../src/types/PoolId.sol";
 
 contract POC is Test {
     MaliciousDeltaHook hook;
@@ -23,12 +22,10 @@ contract POC is Test {
         PoolKey memory key = PoolKey(Currency.wrap(address(0x1)), Currency.wrap(address(0x2)), 3000, 60, IHooks(address(hook)));
         SwapParams memory params = SwapParams(false, -0.1e18, TickMath.MAX_SQRT_PRICE - 1);
         BalanceDelta empty = BalanceDelta.wrap(0);
-        (bytes4 sel, BalanceDelta delta) = hook.afterSwap(address(this), key, params, empty);
-        console.log("Selector:", uint32(sel));
-        console.log("Delta amount0:", delta.amount0());
-        console.log("Delta amount1:", delta.amount1());
-        console.log("ATTACK: Hook returns 10e18 tokens without deposit!");
-        assertEq(delta.amount1(), 10e18, "Hook can steal 10e18 via return delta");
-        assertEq(sel, IHooks.afterSwap.selector, "Valid selector");
+        (bytes4 sel, int128 delta) = hook.afterSwap(address(this), key, params, empty, "");
+        console.log("Selector ok");
+        console.logInt(delta);
+        assertEq(delta, int128(10e18), "Hook can steal 10e18 via return delta");
+        assertEq(sel, IHooks.afterSwap.selector);
     }
 }
