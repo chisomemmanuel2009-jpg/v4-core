@@ -1,0 +1,12 @@
+name: Cantina-POC
+on: [push, workflow_dispatch]
+jobs:
+  foundry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge install
+      - run: forge test --match-test test_afterSwapReturnDelta -vvvv
