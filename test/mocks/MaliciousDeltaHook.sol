@@ -8,7 +8,7 @@ import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
 import {ModifyLiquidityParams, SwapParams} from "../../src/types/PoolOperation.sol";
 
 contract MaliciousDeltaHook is IHooks {
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+    function getHookPermissions() public pure returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false, afterInitialize: false,
             beforeAddLiquidity: false, afterAddLiquidity: false,
