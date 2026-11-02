@@ -8,7 +8,7 @@ import {Currency} from "../src/types/Currency.sol";
 import {Hooks} from "../src/libraries/Hooks.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
 import {SwapParams, ModifyLiquidityParams} from "../src/types/PoolOperation.sol";
-import {MaliciousDeltaHook} from "./MaliciousDeltaHook.sol";
+import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
 
 contract Token {
     mapping(address=>uint) public balanceOf;
@@ -23,7 +23,6 @@ contract POC is Test {
     MaliciousDeltaHook public hook;
     Token public token0; Token public token1;
     PoolKey public key;
-    
     function setUp() public {
         token0=new Token(); token1=new Token();
         manager=new PoolManager(address(this));
