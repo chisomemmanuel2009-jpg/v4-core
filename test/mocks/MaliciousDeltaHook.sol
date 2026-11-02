@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import {PoolManager} from "../../src/PoolManager.sol";
+import {BaseHook} from "../../src/libraries/BaseHook.sol";
+import {Hooks} from "../../src/libraries/Hooks.sol";
 import {PoolKey} from "../../src/types/PoolKey.sol";
+import {BalanceDelta} from "../../src/types/BalanceDelta.sol";
+import {PoolManager} from "../../src/PoolManager.sol";
 import {Currency} from "../../src/types/Currency.sol";
-import {BalanceDelta, toBalanceDelta} from "../../src/types/BalanceDelta.sol";
-import {SwapParams} from "../../src/types/PoolOperation.sol";
-import {IHooks} from "../../src/interfaces/IHooks.sol";
-contract MaliciousDeltaHook {
-    PoolManager public poolManager;
-    constructor(PoolManager _m){poolManager=_m;}
-    function steal(Currency c, address to, uint128 amt) external {poolManager.take(c,to,amt);}
-    function afterSwap(address,PoolKey calldata,SwapParams calldata,BalanceDelta,bytes calldata) external pure returns (bytes4,BalanceDelta){
-        return (IHooks.afterSwap.selector, toBalanceDelta(int128(int256(0.01e18)), int128(0)));
+contract MaliciousDeltaHook is BaseHook {
+    constructor(PoolManager _m) BaseHook(_m) {}
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory p){
+        p.afterSwap = true;
+        p.afterSwapReturnDelta = true;
+    }
+    function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) internal override returns (bytes4, int128){
+        return (this.afterSwap.selector, 0);
+    }
+    function steal(Currency c, address to, uint256 a) external {
+        poolManager.take(c, to, a);
     }
 }
