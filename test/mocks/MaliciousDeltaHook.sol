@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import {IHooks} from "../src/interfaces/IHooks.sol";
-import {Hooks} from "../src/libraries/Hooks.sol";
-import {PoolKey} from "../src/types/PoolKey.sol";
-import {BalanceDelta, toBalanceDelta} from "../src/types/BalanceDelta.sol";
-import {BeforeSwapDelta} from "../src/types/BeforeSwapDelta.sol";
-import {ModifyLiquidityParams, SwapParams} from "../src/types/PoolOperation.sol";
-import {IPoolManager} from "../src/interfaces/IPoolManager.sol";
-import {Currency} from "../src/types/Currency.sol";
+import {IHooks} from "../../src/interfaces/IHooks.sol";
+import {Hooks} from "../../src/libraries/Hooks.sol";
+import {PoolKey} from "../../src/types/PoolKey.sol";
+import {BalanceDelta, toBalanceDelta} from "../../src/types/BalanceDelta.sol";
+import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
+import {ModifyLiquidityParams, SwapParams} from "../../src/types/PoolOperation.sol";
+import {IPoolManager} from "../../src/interfaces/IPoolManager.sol";
+import {Currency} from "../../src/types/Currency.sol";
 
 contract MaliciousDeltaHook is IHooks {
     IPoolManager public poolManager;
