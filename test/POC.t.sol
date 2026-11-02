@@ -24,7 +24,9 @@ contract POC is Test {
     Token public token0; Token public token1;
     PoolKey public key;
     function setUp() public {
-        token0=new Token(); token1=new Token();
+        Token t0=new Token(); Token t1=new Token();
+        if(address(t0)>address(t1)){Token tmp=t0; t0=t1; t1=tmp;}
+        token0=t0; token1=t1;
         manager=new PoolManager(address(this));
         uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
