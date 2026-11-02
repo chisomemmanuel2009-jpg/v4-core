@@ -44,19 +44,33 @@ contract POC is Test {
         isAddingLiquidity=false;
     }
 
+    function _getDeltas(BalanceDelta delta) internal pure returns (int128 a0, int128 a1) {
+        // BalanceDelta is packed: upper 128 = amount0, lower 128 = amount1
+        bytes32 d = BalanceDelta.unwrap(delta);
+        a0 = int128(int256(d) >> 128);
+        a1 = int128(int256(d));
+    }
+
     function unlockCallback(bytes calldata) external returns(bytes memory){
         if(isAddingLiquidity){
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
-            // settle by sync -> transfer -> settle
+            (int128 amt0, int128 amt1) = _getDeltas(delta);
             Currency c0 = Currency.wrap(address(token0));
             Currency c1 = Currency.wrap(address(token1));
-            manager.sync(c0);
-            token0.transfer(address(manager), 10e18);
-            manager.settle();
-            manager.sync(c1);
-            token1.transfer(address(manager), 10e18);
-            manager.settle();
-        }else{
+            if (amt0 < 0) {
+                manager.sync(c0);
+                token0.transfer(address(manager), uint128(-amt0));
+                manager.settle();
+            }
+            if (amt1 < 0) {
+                manager.sync(c1);
+                token1.transfer(address(manager), uint128(-amt1));
+                manager.settle();
+            }
+            // if positive, take it (should not happen on add)
+            if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
+            if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
+        } else {
             manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             hook.drain(10e18);
         }
