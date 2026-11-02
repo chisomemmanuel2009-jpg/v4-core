@@ -45,10 +45,9 @@ contract POC is Test {
     }
 
     function _getDeltas(BalanceDelta delta) internal pure returns (int128 a0, int128 a1) {
-        // BalanceDelta is packed: upper 128 = amount0, lower 128 = amount1
-        bytes32 d = BalanceDelta.unwrap(delta);
-        a0 = int128(int256(d) >> 128);
-        a1 = int128(int256(d));
+        int256 d = BalanceDelta.unwrap(delta);
+        a0 = int128(d >> 128);
+        a1 = int128(d);
     }
 
     function unlockCallback(bytes calldata) external returns(bytes memory){
@@ -67,7 +66,6 @@ contract POC is Test {
                 token1.transfer(address(manager), uint128(-amt1));
                 manager.settle();
             }
-            // if positive, take it (should not happen on add)
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
             if (amt1 > 0) manager.take(c1, address(this), uint128(amt1));
         } else {
