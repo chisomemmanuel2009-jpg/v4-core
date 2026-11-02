@@ -26,9 +26,10 @@ contract MaliciousDeltaHook is IHooks {
     function beforeSwap(address, PoolKey calldata, SwapParams calldata, bytes calldata) external pure returns (bytes4, BeforeSwapDelta, uint24){ return (IHooks.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0); }
     
     function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, int128){
-        return (IHooks.afterSwap.selector, 0);
+        return (
+function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, int128){
+        return (IHooks.afterSwap.selector, -10000000000000000);
     }
-
     function beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4){ return IHooks.beforeDonate.selector; }
     function afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4){ return IHooks.afterDonate.selector; }
     
