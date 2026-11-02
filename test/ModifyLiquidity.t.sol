@@ -48,9 +48,7 @@ contract ModifyLiquidityTest is Test, Logger, Deployers, JavascriptFfi, Fuzzers 
     //////////////////////////////////////////////////////////////*/
 
     /// forge-config: default.fuzz.runs = 10
-    /// forge-config: pr.fuzz.runs = 10
-    /// forge-config: ci.fuzz.runs = 500
-    /// forge-config: debug.fuzz.runs = 10
+     10
     function test_ffi_fuzz_addLiquidity_defaultPool_ReturnsCorrectLiquidityDelta(ModifyLiquidityParams memory paramSeed)
         public
     {
