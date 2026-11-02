@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import {BaseHook} from "../../src/libraries/BaseHook.sol";
-import {Hooks} from "../../src/libraries/Hooks.sol";
+import {IHooks} from "../../src/interfaces/IHooks.sol";
 import {PoolKey} from "../../src/types/PoolKey.sol";
 import {BalanceDelta} from "../../src/types/BalanceDelta.sol";
+import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
 import {PoolManager} from "../../src/PoolManager.sol";
 import {Currency} from "../../src/types/Currency.sol";
-contract MaliciousDeltaHook is BaseHook {
-    constructor(PoolManager _m) BaseHook(_m) {}
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory p){
-        p.afterSwap = true;
-        p.afterSwapReturnDelta = true;
-    }
-    function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) internal override returns (bytes4, int128){
-        return (this.afterSwap.selector, 0);
-    }
-    function steal(Currency c, address to, uint256 a) external {
-        poolManager.take(c, to, a);
-    }
+contract MaliciousDeltaHook is IHooks {
+    PoolManager public poolManager;
+    constructor(PoolManager _m){poolManager=_m;}
+    function beforeInitialize(address, PoolKey calldata, uint160) external pure returns (bytes4){return IHooks.beforeInitialize.selector;}
+    function afterInitialize(address, PoolKey calldata, uint160, int24) external pure returns (bytes4){return IHooks.afterInitialize.selector;}
+    function beforeAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4){return IHooks.beforeAddLiquidity.selector;}
+    function afterAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, BalanceDelta, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta){return (IHooks.afterAddLiquidity.selector, BalanceDelta.wrap(0));}
+    function beforeRemoveLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata) external pure returns (bytes4){return IHooks.beforeRemoveLiquidity.selector;}
+    function afterRemoveLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, BalanceDelta, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta){return (IHooks.afterRemoveLiquidity.selector, BalanceDelta.wrap(0));}
+    function beforeSwap(address, PoolKey calldata, SwapParams calldata, bytes calldata) external pure returns (bytes4, BeforeSwapDelta, uint24){return (IHooks.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);}
+    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, int128){return (IHooks.afterSwap.selector, 0);}
+    function beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4){return IHooks.beforeDonate.selector;}
+    function afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4){return IHooks.afterDonate.selector;}
+    function steal(Currency c, address to, uint256 a) external {poolManager.take(c,to,a);}
 }
