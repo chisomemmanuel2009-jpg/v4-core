@@ -4,6 +4,7 @@ import {IHooks} from "../../src/interfaces/IHooks.sol";
 import {PoolKey} from "../../src/types/PoolKey.sol";
 import {BalanceDelta} from "../../src/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "../../src/types/BeforeSwapDelta.sol";
+import {ModifyLiquidityParams, SwapParams} from "../../src/types/PoolOperation.sol";
 import {PoolManager} from "../../src/PoolManager.sol";
 import {Currency} from "../../src/types/Currency.sol";
 contract MaliciousDeltaHook is IHooks {
